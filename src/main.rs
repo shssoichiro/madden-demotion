@@ -8,122 +8,109 @@ use csv::Reader;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Deserializer};
 
-// Assuming 32 starters
 const QB_LIMITS: DevLimits = DevLimits {
     xf_min: 2,
     xf_max: 4,
     ss_min: 6,
     ss_max: 8,
     star_min: 12,
-    star_max: 16,
+    star_max: 20,
 };
-// Assuming 32 starters + 32 3DRBs
 const HB_LIMITS: DevLimits = DevLimits {
     xf_min: 2,
     xf_max: 4,
-    ss_min: 6,
-    ss_max: 10,
-    star_min: 20,
-    star_max: 30,
+    ss_min: 8,
+    ss_max: 12,
+    star_min: 30,
+    star_max: 40,
 };
-// Assuming 32 starters
 const FB_LIMITS: DevLimits = DevLimits {
     xf_min: 0,
     xf_max: 0,
     ss_min: 0,
     ss_max: 2,
-    star_min: 4,
-    star_max: 6,
+    star_min: 3,
+    star_max: 5,
 };
-// Assuming about 100 starters
 const WR_LIMITS: DevLimits = DevLimits {
-    xf_min: 5,
-    xf_max: 7,
+    xf_min: 8,
+    xf_max: 12,
     ss_min: 12,
-    ss_max: 16,
-    star_min: 40,
+    ss_max: 18,
+    star_min: 45,
     star_max: 60,
 };
-// Assuming 32 starters and occasional 2/3 TE formations
 const TE_LIMITS: DevLimits = DevLimits {
-    xf_min: 1,
-    xf_max: 3,
-    ss_min: 4,
+    xf_min: 2,
+    xf_max: 4,
+    ss_min: 6,
     ss_max: 8,
-    star_min: 18,
-    star_max: 25,
+    star_min: 24,
+    star_max: 32,
 };
-// Assuming 160 starters
 const OL_LIMITS: DevLimits = DevLimits {
     xf_min: 0,
     xf_max: 0,
-    ss_min: 12,
-    ss_max: 16,
-    star_min: 72,
+    ss_min: 15,
+    ss_max: 20,
+    star_min: 80,
     star_max: 95,
 };
-// Assuming 110-120 starters
 const IDL_LIMITS: DevLimits = DevLimits {
     xf_min: 4,
     xf_max: 6,
     ss_min: 10,
-    ss_max: 15,
-    star_min: 50,
-    star_max: 65,
-};
-// Assuming 64 starters
-const EDGE_LIMITS: DevLimits = DevLimits {
-    xf_min: 5,
-    xf_max: 7,
-    ss_min: 8,
     ss_max: 12,
-    star_min: 25,
-    star_max: 36,
+    star_min: 36,
+    star_max: 50,
 };
-// Assuming 110-120 starters
-const LB_LIMITS: DevLimits = DevLimits {
+const EDGE_LIMITS: DevLimits = DevLimits {
     xf_min: 4,
     xf_max: 6,
-    ss_min: 10,
-    ss_max: 15,
-    star_min: 50,
-    star_max: 65,
+    ss_min: 6,
+    ss_max: 10,
+    star_min: 25,
+    star_max: 40,
 };
-// Assuming about 100 starters
+const LB_LIMITS: DevLimits = DevLimits {
+    xf_min: 2,
+    xf_max: 4,
+    ss_min: 6,
+    ss_max: 10,
+    star_min: 24,
+    star_max: 36,
+};
 const CB_LIMITS: DevLimits = DevLimits {
-    xf_min: 5,
-    xf_max: 7,
-    ss_min: 12,
+    xf_min: 3,
+    xf_max: 6,
+    ss_min: 10,
     ss_max: 16,
-    star_min: 40,
+    star_min: 45,
     star_max: 60,
 };
-// Assuming 64 starters + a few used in BNOG and Slot
 const S_LIMITS: DevLimits = DevLimits {
     xf_min: 3,
     xf_max: 5,
-    ss_min: 7,
-    ss_max: 10,
-    star_min: 25,
-    star_max: 36,
+    ss_min: 8,
+    ss_max: 12,
+    star_min: 36,
+    star_max: 50,
 };
-// Assuming 32 starters
 const K_LIMITS: DevLimits = DevLimits {
     xf_min: 0,
     xf_max: 0,
     ss_min: 1,
     ss_max: 3,
-    star_min: 8,
-    star_max: 12,
+    star_min: 5,
+    star_max: 8,
 };
-// Assuming 32 starters
 const P_LIMITS: DevLimits = DevLimits {
     xf_min: 0,
     xf_max: 0,
     ss_min: 1,
-    ss_max: 3,
-    star_min: 6,
-    star_max: 10,
+    ss_max: 2,
+    star_min: 3,
+    star_max: 6,
 };
 
 const THREE_FOUR_TEAMS: &[&str] = &[
@@ -151,6 +138,94 @@ enum DevTrait {
 }
 
 fn main() {
+    let total_xf_max = QB_LIMITS.xf_max
+        + HB_LIMITS.xf_max
+        + FB_LIMITS.xf_max
+        + WR_LIMITS.xf_max
+        + TE_LIMITS.xf_max
+        + OL_LIMITS.xf_max
+        + IDL_LIMITS.xf_max
+        + EDGE_LIMITS.xf_max
+        + LB_LIMITS.xf_max
+        + CB_LIMITS.xf_max
+        + S_LIMITS.xf_max
+        + K_LIMITS.xf_max
+        + P_LIMITS.xf_max;
+    let total_xf_min = QB_LIMITS.xf_min
+        + HB_LIMITS.xf_min
+        + FB_LIMITS.xf_min
+        + WR_LIMITS.xf_min
+        + TE_LIMITS.xf_min
+        + OL_LIMITS.xf_min
+        + IDL_LIMITS.xf_min
+        + EDGE_LIMITS.xf_min
+        + LB_LIMITS.xf_min
+        + CB_LIMITS.xf_min
+        + S_LIMITS.xf_min
+        + K_LIMITS.xf_min
+        + P_LIMITS.xf_min;
+    let total_ss_max = QB_LIMITS.ss_max
+        + HB_LIMITS.ss_max
+        + FB_LIMITS.ss_max
+        + WR_LIMITS.ss_max
+        + TE_LIMITS.ss_max
+        + OL_LIMITS.ss_max
+        + IDL_LIMITS.ss_max
+        + EDGE_LIMITS.ss_max
+        + LB_LIMITS.ss_max
+        + CB_LIMITS.ss_max
+        + S_LIMITS.ss_max
+        + K_LIMITS.ss_max
+        + P_LIMITS.ss_max
+        - total_xf_max;
+    let total_ss_min = QB_LIMITS.ss_min
+        + HB_LIMITS.ss_min
+        + FB_LIMITS.ss_min
+        + WR_LIMITS.ss_min
+        + TE_LIMITS.ss_min
+        + OL_LIMITS.ss_min
+        + IDL_LIMITS.ss_min
+        + EDGE_LIMITS.ss_min
+        + LB_LIMITS.ss_min
+        + CB_LIMITS.ss_min
+        + S_LIMITS.ss_min
+        + K_LIMITS.ss_min
+        + P_LIMITS.ss_min
+        - total_xf_min;
+    let total_star_max = QB_LIMITS.star_max
+        + HB_LIMITS.star_max
+        + FB_LIMITS.star_max
+        + WR_LIMITS.star_max
+        + TE_LIMITS.star_max
+        + OL_LIMITS.star_max
+        + IDL_LIMITS.star_max
+        + EDGE_LIMITS.star_max
+        + LB_LIMITS.star_max
+        + CB_LIMITS.star_max
+        + S_LIMITS.star_max
+        + K_LIMITS.star_max
+        + P_LIMITS.star_max
+        - total_ss_max;
+    let total_star_min = QB_LIMITS.star_min
+        + HB_LIMITS.star_min
+        + FB_LIMITS.star_min
+        + WR_LIMITS.star_min
+        + TE_LIMITS.star_min
+        + OL_LIMITS.star_min
+        + IDL_LIMITS.star_min
+        + EDGE_LIMITS.star_min
+        + LB_LIMITS.star_min
+        + CB_LIMITS.star_min
+        + S_LIMITS.star_min
+        + K_LIMITS.star_min
+        + P_LIMITS.star_min
+        - total_ss_min;
+    eprintln!("Overall targets:");
+    eprintln!("XF: {total_xf_min}-{total_xf_max}");
+    eprintln!("SS: {total_ss_min}-{total_ss_max}");
+    eprintln!("Star: {total_star_min}-{total_star_max}");
+    eprintln!();
+
     let passing_stats: Vec<PassingData> = read_csv("data/neon_season/SFDL_passing.csv");
     let receiving_stats: Vec<ReceivingData> = read_csv("data/neon_season/SFDL_receiving.csv");
     let rushing_stats: Vec<RushingData> = read_csv("data/neon_season/SFDL_rushing.csv");
