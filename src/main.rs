@@ -374,138 +374,78 @@ fn main() {
         // Sort players according to their performance this season
         let players = players
             .into_iter()
-            .sorted_unstable_by(|player_a, player_b| match pos {
-                "QB" => {
-                    let a_pass_stats = passing_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_pass_stats = passing_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
-                    let a_rush_stats = rushing_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_rush_stats = rushing_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+            .map(|player| {
+                (player, match pos {
+                    "QB" => {
+                        let pass_stats = passing_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
+                        let rush_stats = rushing_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
 
-                    let score_a = calc_qb_score(player_a, a_pass_stats, a_rush_stats);
-                    let score_b = calc_qb_score(player_b, b_pass_stats, b_rush_stats);
-                    if score_a > score_b {
-                        Ordering::Less
-                    } else if score_b > score_a {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
+                        calc_qb_score(player, pass_stats, rush_stats)
                     }
-                }
-                "HB" | "FB" | "WR" | "TE" => {
-                    let a_recv_stats = receiving_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_recv_stats = receiving_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
-                    let a_rush_stats = rushing_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_rush_stats = rushing_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+                    "HB" | "FB" | "WR" | "TE" => {
+                        let recv_stats = receiving_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
+                        let rush_stats = rushing_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
 
-                    let score_a = calc_receiver_score(player_a, a_recv_stats, a_rush_stats);
-                    let score_b = calc_receiver_score(player_b, b_recv_stats, b_rush_stats);
-                    if score_a > score_b {
-                        Ordering::Less
-                    } else if score_b > score_a {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
+                        calc_receiver_score(player, recv_stats, rush_stats)
                     }
-                }
-                "OL" => {
-                    let score_a = calc_ol_score(player_a, &mut rng);
-                    let score_b = calc_ol_score(player_b, &mut rng);
-                    if score_a > score_b {
-                        Ordering::Less
-                    } else if score_b > score_a {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
-                    }
-                }
-                "IDL" | "EDGE" | "LB" | "CB" | "S" => {
-                    let a_stats = defense_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_stats = defense_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+                    "OL" => calc_ol_score(player, &mut rng),
+                    "IDL" | "EDGE" | "LB" | "CB" | "S" => {
+                        let stats = defense_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
 
-                    let score_a = calc_defense_score(player_a, a_stats);
-                    let score_b = calc_defense_score(player_b, b_stats);
-                    if score_a > score_b {
-                        Ordering::Less
-                    } else if score_b > score_a {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
+                        calc_defense_score(player, stats)
                     }
-                }
-                "K" => {
-                    let a_stats = kicking_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_stats = kicking_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+                    "K" => {
+                        let stats = kicking_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
 
-                    let score_a = calc_kicker_score(player_a, a_stats);
-                    let score_b = calc_kicker_score(player_b, b_stats);
-                    if score_a > score_b {
-                        Ordering::Less
-                    } else if score_b > score_a {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
+                        calc_kicker_score(player, stats)
                     }
-                }
-                "P" => {
-                    let a_stats = punting_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_a.rosterId);
-                    let b_stats = punting_stats
-                        .iter()
-                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+                    "P" => {
+                        let stats = punting_stats
+                            .iter()
+                            .find(|stat| stat.player__rosterId == player.rosterId);
 
-                    let score_a = calc_punter_score(player_a, a_stats);
-                    let score_b = calc_punter_score(player_b, b_stats);
-                    if score_a > score_b {
-                        Ordering::Less
-                    } else if score_b > score_a {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
+                        calc_punter_score(player, stats)
                     }
+                    _ => unreachable!(),
+                })
+            })
+            .sorted_unstable_by(|(_, score_a), (_, score_b)| {
+                if score_a > score_b {
+                    Ordering::Less
+                } else if score_b > score_a {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
                 }
-                _ => unreachable!(),
             })
             .collect_vec();
 
         let xf_count = players
             .iter()
-            .filter(|x| x.devTrait >= DevTrait::XFactor as u8)
+            .filter(|(x, _)| x.devTrait >= DevTrait::XFactor as u8)
             .count();
         if xf_count < limits.xf_min {
             let players = players
                 .iter()
-                .filter(|player| {
+                .filter(|(player, _)| {
                     player.devTrait == DevTrait::Superstar as u8
                         && !upgraded_players.contains(&player.fullName)
                 })
                 .take(limits.xf_min - xf_count)
                 .collect_vec();
-            for player in players {
+            for (player, _) in players {
                 protected_players.insert(player.fullName.clone());
                 upgraded_players.insert(player.fullName.clone());
                 changed_players.insert(
@@ -520,14 +460,14 @@ fn main() {
         } else if xf_count > limits.xf_max {
             let players = players
                 .iter()
-                .filter(|player| {
+                .filter(|(player, _)| {
                     player.devTrait == DevTrait::XFactor as u8
                         && !protected_players.contains(&player.fullName)
                 })
                 .rev()
                 .take(xf_count - limits.xf_max)
                 .collect_vec();
-            for player in players {
+            for (player, _) in players {
                 protected_players.insert(player.fullName.clone());
                 changed_players.insert(
                     (
@@ -542,18 +482,18 @@ fn main() {
 
         let ss_count = players
             .iter()
-            .filter(|x| x.devTrait >= DevTrait::Superstar as u8)
+            .filter(|(x, _)| x.devTrait >= DevTrait::Superstar as u8)
             .count();
         if ss_count < limits.ss_min {
             let players = players
                 .iter()
-                .filter(|player| {
+                .filter(|(player, _)| {
                     player.devTrait == DevTrait::Star as u8
                         && !upgraded_players.contains(&player.fullName)
                 })
                 .take(limits.ss_min - ss_count)
                 .collect_vec();
-            for player in players {
+            for (player, _) in players {
                 protected_players.insert(player.fullName.clone());
                 upgraded_players.insert(player.fullName.clone());
                 changed_players.insert(
@@ -568,14 +508,14 @@ fn main() {
         } else if ss_count > limits.ss_max {
             let players = players
                 .iter()
-                .filter(|player| {
+                .filter(|(player, _)| {
                     player.devTrait == DevTrait::Superstar as u8
                         && !protected_players.contains(&player.fullName)
                 })
                 .rev()
                 .take(ss_count - limits.ss_max)
                 .collect_vec();
-            for player in players {
+            for (player, _) in players {
                 protected_players.insert(player.fullName.clone());
                 changed_players.insert(
                     (
@@ -590,15 +530,15 @@ fn main() {
 
         let star_count = players
             .iter()
-            .filter(|x| x.devTrait >= DevTrait::Star as u8)
+            .filter(|(x, _)| x.devTrait >= DevTrait::Star as u8)
             .count();
         if star_count < limits.star_min {
             let players = players
                 .iter()
-                .filter(|player| player.devTrait == DevTrait::Normal as u8)
+                .filter(|(player, _)| player.devTrait == DevTrait::Normal as u8)
                 .take(limits.star_min - star_count)
                 .collect_vec();
-            for player in players {
+            for (player, _) in players {
                 protected_players.insert(player.fullName.clone());
                 upgraded_players.insert(player.fullName.clone());
                 changed_players.insert(
@@ -613,14 +553,14 @@ fn main() {
         } else if star_count > limits.star_max {
             let players = players
                 .iter()
-                .filter(|player| {
+                .filter(|(player, _)| {
                     player.devTrait == DevTrait::Star as u8
                         && !protected_players.contains(&player.fullName)
                 })
                 .rev()
                 .take(star_count - limits.star_max)
                 .collect_vec();
-            for player in players {
+            for (player, _) in players {
                 protected_players.insert(player.fullName.clone());
                 changed_players.insert(
                     (
