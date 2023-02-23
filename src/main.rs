@@ -1,4 +1,7 @@
+#![allow(non_snake_case)]
+
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     fs::File,
     io::BufReader,
@@ -6,6 +9,7 @@ use std::{
 
 use csv::Reader;
 use itertools::Itertools;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer};
 
 const QB_LIMITS: DevLimits = DevLimits {
@@ -138,6 +142,10 @@ enum DevTrait {
 }
 
 fn main() {
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice("T4cwqWjlAaZonILlHIIvp5rwBmt6jwBl".as_bytes());
+    let mut rng = StdRng::from_seed(seed);
+
     let total_xf_max = QB_LIMITS.xf_max
         + HB_LIMITS.xf_max
         + FB_LIMITS.xf_max
@@ -220,11 +228,11 @@ fn main() {
         + K_LIMITS.star_min
         + P_LIMITS.star_min
         - total_ss_min;
-    eprintln!("Overall targets:");
-    eprintln!("XF: {total_xf_min}-{total_xf_max}");
-    eprintln!("SS: {total_ss_min}-{total_ss_max}");
-    eprintln!("Star: {total_star_min}-{total_star_max}");
-    eprintln!();
+    println!("Overall targets:");
+    println!("XF: {total_xf_min}-{total_xf_max}");
+    println!("SS: {total_ss_min}-{total_ss_max}");
+    println!("Star: {total_star_min}-{total_star_max}");
+    println!();
 
     let passing_stats: Vec<PassingData> = read_csv("data/neon_season/SFDL_passing.csv");
     let receiving_stats: Vec<ReceivingData> = read_csv("data/neon_season/SFDL_receiving.csv");
@@ -295,7 +303,10 @@ fn main() {
                 .iter()
                 .filter(|player| player.position == pos)
                 .collect_vec()
-        };
+        }
+        .into_iter()
+        .filter(|player| !player.isRetired)
+        .collect_vec();
 
         // Protect rookies who played at least 8 games
         for player in players
@@ -304,41 +315,41 @@ fn main() {
             .filter(|player| {
                 let games_played = passing_stats
                     .iter()
-                    .filter(|stat| stat.player__fullName == player.fullName)
+                    .filter(|stat| stat.player__rosterId == player.rosterId)
                     .map(|stat| stat.gamesPlayed)
                     .sum::<u8>()
                     .max(
                         rushing_stats
                             .iter()
-                            .filter(|stat| stat.player__fullName == player.fullName)
+                            .filter(|stat| stat.player__rosterId == player.rosterId)
                             .map(|stat| stat.gamesPlayed)
                             .sum(),
                     )
                     .max(
                         receiving_stats
                             .iter()
-                            .filter(|stat| stat.player__fullName == player.fullName)
+                            .filter(|stat| stat.player__rosterId == player.rosterId)
                             .map(|stat| stat.gamesPlayed)
                             .sum(),
                     )
                     .max(
                         defense_stats
                             .iter()
-                            .filter(|stat| stat.player__fullName == player.fullName)
+                            .filter(|stat| stat.player__rosterId == player.rosterId)
                             .map(|stat| stat.gamesPlayed)
                             .sum(),
                     )
                     .max(
                         kicking_stats
                             .iter()
-                            .filter(|stat| stat.player__fullName == player.fullName)
+                            .filter(|stat| stat.player__rosterId == player.rosterId)
                             .map(|stat| stat.gamesPlayed)
                             .sum(),
                     )
                     .max(
                         punting_stats
                             .iter()
-                            .filter(|stat| stat.player__fullName == player.fullName)
+                            .filter(|stat| stat.player__rosterId == player.rosterId)
                             .map(|stat| stat.gamesPlayed)
                             .sum(),
                     );
@@ -352,7 +363,7 @@ fn main() {
         for player in players_old.iter().filter(|player| {
             players_new
                 .iter()
-                .find(|new| new.fullName == player.fullName)
+                .find(|new| new.rosterId == player.rosterId)
                 .map(|new| new.devTrait > player.devTrait)
                 .unwrap_or(false)
         }) {
@@ -363,13 +374,120 @@ fn main() {
         // Sort players according to their performance this season
         let players = players
             .into_iter()
-            .sorted_unstable_by_key(|player| match pos {
-                "QB" => (),
-                "HB" | "FB" | "WR" | "TE" => (),
-                "OL" => (),
-                "IDL" | "EDGE" | "LB" | "CB" | "S" => (),
-                "K" => (),
-                "P" => (),
+            .sorted_unstable_by(|player_a, player_b| match pos {
+                "QB" => {
+                    let a_pass_stats = passing_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_pass_stats = passing_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+                    let a_rush_stats = rushing_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_rush_stats = rushing_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+
+                    let score_a = calc_qb_score(player_a, a_pass_stats, a_rush_stats);
+                    let score_b = calc_qb_score(player_b, b_pass_stats, b_rush_stats);
+                    if score_a > score_b {
+                        Ordering::Less
+                    } else if score_b > score_a {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                "HB" | "FB" | "WR" | "TE" => {
+                    let a_recv_stats = receiving_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_recv_stats = receiving_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+                    let a_rush_stats = rushing_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_rush_stats = rushing_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+
+                    let score_a = calc_receiver_score(player_a, a_recv_stats, a_rush_stats);
+                    let score_b = calc_receiver_score(player_b, b_recv_stats, b_rush_stats);
+                    if score_a > score_b {
+                        Ordering::Less
+                    } else if score_b > score_a {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                "OL" => {
+                    let score_a = calc_ol_score(player_a, &mut rng);
+                    let score_b = calc_ol_score(player_b, &mut rng);
+                    if score_a > score_b {
+                        Ordering::Less
+                    } else if score_b > score_a {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                "IDL" | "EDGE" | "LB" | "CB" | "S" => {
+                    let a_stats = defense_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_stats = defense_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+
+                    let score_a = calc_defense_score(player_a, a_stats);
+                    let score_b = calc_defense_score(player_b, b_stats);
+                    if score_a > score_b {
+                        Ordering::Less
+                    } else if score_b > score_a {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                "K" => {
+                    let a_stats = kicking_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_stats = kicking_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+
+                    let score_a = calc_kicker_score(player_a, a_stats);
+                    let score_b = calc_kicker_score(player_b, b_stats);
+                    if score_a > score_b {
+                        Ordering::Less
+                    } else if score_b > score_a {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                "P" => {
+                    let a_stats = punting_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_a.rosterId);
+                    let b_stats = punting_stats
+                        .iter()
+                        .find(|stat| stat.player__rosterId == player_b.rosterId);
+
+                    let score_a = calc_punter_score(player_a, a_stats);
+                    let score_b = calc_punter_score(player_b, b_stats);
+                    if score_a > score_b {
+                        Ordering::Less
+                    } else if score_b > score_a {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -523,17 +641,17 @@ fn main() {
         .into_iter()
     {
         if team.is_empty() {
-            eprintln!("Free Agents:");
+            println!("Free Agents:");
         } else {
-            eprintln!("{team}:");
+            println!("{team}:");
         }
         for ((player, _, pos), (old, new)) in group
             .into_iter()
             .sorted_unstable_by_key(|((name, _, pos), _)| (pos.clone(), name.clone()))
         {
-            eprintln!("{pos} {player}: {old:?} -> {new:?}");
+            println!("{pos} {player}: {old:?} -> {new:?}");
         }
-        eprintln!();
+        println!();
     }
 }
 
@@ -557,6 +675,160 @@ where
     }
 }
 
+const PASS_YARD_VALUE: f32 = 0.05;
+const PASS_TD_VALUE: f32 = 4.0;
+const INT_LOST_VALUE: f32 = -2.0;
+const RUSH_YARD_VALUE: f32 = 0.1;
+const RUSH_TD_VALUE: f32 = 4.0;
+const FUMBLE_VALUE: f32 = -2.0;
+const RECV_YARD_VALUE: f32 = 0.1;
+const RECV_CATCH_VALUE: f32 = 0.25;
+const RECV_DROP_VALUE: f32 = -0.05;
+const RECV_TD_VALUE: f32 = 4.0;
+const TACKLE_VALUE: f32 = 0.5;
+const DEFLECTION_VALUE: f32 = 1.0;
+const CATCH_ALLOWED_VALUE: f32 = -0.2;
+const SACK_VALUE: f32 = 2.0;
+const DEF_TD_VALUE: f32 = 6.0;
+const FORCED_FUMBLE_VALUE: f32 = 2.0;
+const FUMBLE_REC_VALUE: f32 = 2.0;
+const INT_FORCED_VALUE: f32 = 3.0;
+const INT_RETURN_YARD_VALUE: f32 = 0.05;
+const SAFETY_VALUE: f32 = 3.0;
+const FG_VALUE: f32 = 3.0;
+const FG_50_PLUS_VALUE: f32 = 5.0;
+const FG_MISS_VALUE: f32 = -1.0;
+// This is positive to reduce the penalty from above.
+const FG_50_PLUS_MISS_VALUE: f32 = 0.9;
+const XP_VALUE: f32 = 1.0;
+const XP_MISS_VALUE: f32 = -1.0;
+const PUNT_AVG_YDS_VALUE: f32 = 0.02;
+
+/// Applies a multiplier to a score based on a players age and possibly other
+/// stuff in the future
+fn calc_player_multiplier(player: &PlayerData) -> f32 {
+    if player.age <= 24 || player.yearsPro <= 2 {
+        return 1.2;
+    }
+    if player.age <= 26 {
+        return 1.1;
+    }
+    if player.age <= 29 {
+        return 1.0;
+    }
+    // A gradual slope that results in 20% loss at age 35, 40% loss at age 40, and
+    // so on. If you're still in the league at age 50 then god help us.
+    (1.0 + (player.age - 30) as f32 * -0.04).max(0.2)
+}
+
+fn calc_qb_score(
+    player: &PlayerData,
+    pass_stats: Option<&PassingData>,
+    rush_stats: Option<&RushingData>,
+) -> f32 {
+    calc_player_multiplier(player)
+        * (pass_stats
+            .map(|stat| {
+                stat.passTotalYds as f32 * PASS_YARD_VALUE
+                    + stat.passTotalTDs as f32 * PASS_TD_VALUE
+                    + stat.passTotalInts as f32 * INT_LOST_VALUE
+            })
+            .unwrap_or(0.0)
+            + rush_stats
+                .map(|stat| {
+                    stat.rushTotalYds as f32 * RUSH_YARD_VALUE
+                        + stat.rushTotalTDs as f32 * RUSH_TD_VALUE
+                        + stat.rushTotalFum as f32 * FUMBLE_VALUE
+                })
+                .unwrap_or(0.0))
+}
+
+fn calc_receiver_score(
+    player: &PlayerData,
+    recv_stats: Option<&ReceivingData>,
+    rush_stats: Option<&RushingData>,
+) -> f32 {
+    calc_player_multiplier(player)
+        * (recv_stats
+            .map(|stat| {
+                stat.recTotalYds as f32 * RECV_YARD_VALUE
+                    + stat.recTotalTDs as f32 * RECV_TD_VALUE
+                    + stat.recTotalCatches as f32 * RECV_CATCH_VALUE
+                    + stat.recTotalDrops as f32 * RECV_DROP_VALUE
+            })
+            .unwrap_or(0.0)
+            + rush_stats
+                .map(|stat| {
+                    stat.rushTotalYds as f32 * RUSH_YARD_VALUE
+                        + stat.rushTotalTDs as f32 * RUSH_TD_VALUE
+                        + stat.rushTotalFum as f32 * FUMBLE_VALUE
+                })
+                .unwrap_or(0.0))
+}
+
+/// The game doesn't give us stats for OL so we have to do something weird and
+/// terrible. Something very madden-esque. Although we at least take into
+/// account age here, and add in a random factor so it's not just the youngest,
+/// best players getting it. But this still sucks. Blame Madden for not giving
+/// us OL stats.
+fn calc_ol_score(player: &PlayerData, rng: &mut StdRng) -> f32 {
+    calc_player_multiplier(player) * player.playerBestOvr as f32 * rng.gen_range(0.9..1.1)
+}
+
+fn calc_defense_score(player: &PlayerData, stats: Option<&DefenseData>) -> f32 {
+    calc_player_multiplier(player)
+        * stats
+            .map(|stat| {
+                stat.defTotalTackles * TACKLE_VALUE
+                    + stat.defTotalDeflections as f32 * DEFLECTION_VALUE
+                    + stat.defTotalCatchAllowed as f32 * CATCH_ALLOWED_VALUE
+                    + stat.defTotalSacks * SACK_VALUE
+                    + stat.defTotalTDs as f32 * DEF_TD_VALUE
+                    + stat.defTotalForcedFum as f32 * FORCED_FUMBLE_VALUE
+                    + stat.defTotalFumRec as f32 * FUMBLE_REC_VALUE
+                    + stat.defTotalInts as f32 * INT_FORCED_VALUE
+                    + stat.defTotalIntReturnYds as f32 * INT_RETURN_YARD_VALUE
+                    + stat.defTotalSafeties as f32 * SAFETY_VALUE
+            })
+            .unwrap_or(0.0)
+}
+
+fn calc_kicker_score(player: &PlayerData, stats: Option<&KickingData>) -> f32 {
+    calc_player_multiplier(player)
+        * stats
+            .map(|stat| {
+                let fg_miss = stat.fGTotalAtt - stat.fGTotalMade;
+                let fg_50plus_miss = stat.fGTotal50PlusAtt - stat.fGTotal50PlusMade;
+                let xp_miss = stat.xPTotalAtt - stat.xPTotalMade;
+                stat.fGTotalMade as f32 * FG_VALUE
+                    + stat.fGTotal50PlusMade as f32 * FG_50_PLUS_VALUE
+                    + fg_miss as f32 * FG_MISS_VALUE
+                    + fg_50plus_miss as f32 * FG_50_PLUS_MISS_VALUE
+                    + stat.xPTotalMade as f32 * XP_VALUE
+                    + xp_miss as f32 * XP_MISS_VALUE
+            })
+            .unwrap_or(0.0)
+}
+
+fn calc_punter_score(player: &PlayerData, stats: Option<&PuntingData>) -> f32 {
+    calc_player_multiplier(player)
+        * stats
+            .map(|stat| {
+                if stat.gamesPlayed < 6 {
+                    // Because this is based on averages, given that good teams punt less,
+                    // we need to have a minimum number of games played to consider a punter for
+                    // promotion. On all the other positions, the stats have a
+                    // direct correlation with games played.
+                    //
+                    // Except OL. Because we have no stats. Not even number of games played.
+                    return stat.gamesPlayed as f32 / 100.;
+                }
+                stat.puntAvgYdsPerAtt * PUNT_AVG_YDS_VALUE
+                    + stat.puntsTotalIn20 as f32 / stat.puntTotalAtt as f32
+            })
+            .unwrap_or(0.0)
+}
+
 #[derive(Debug, Clone, Copy)]
 struct DevLimits {
     pub xf_min: usize,
@@ -569,39 +841,23 @@ struct DevLimits {
 
 #[derive(Deserialize)]
 struct PlayerData {
-    pub id: u32,
     pub rosterId: u32,
     pub team: String,
     #[serde(deserialize_with = "from_str_bool")]
     pub isRetired: bool,
     pub age: u8,
     pub fullName: String,
-    #[serde(deserialize_with = "from_str_bool")]
-    pub isActive: bool,
-    #[serde(deserialize_with = "from_str_bool")]
-    pub isFreeAgent: bool,
-    #[serde(deserialize_with = "from_str_bool")]
-    pub isOnIR: bool,
-    #[serde(deserialize_with = "from_str_bool")]
-    pub isOnPracticeSquad: bool,
     pub position: String,
     pub playerBestOvr: u8,
-    pub playerSchemeOvr: u8,
-    pub scheme: u8,
-    pub teamSchemeOvr: u32,
-    pub weight: u32,
     pub yearsPro: u8,
     pub devTrait: u8,
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct PassingData {
-    pub team__displayName: String,
-    pub team__abbrName: String,
     pub player__rosterId: u32,
-    pub player__fullName: String,
     pub gamesPlayed: u8,
-    pub fantasy_points: f32,
     pub passTotalAtt: u32,
     pub passTotalComp: u32,
     pub passAvgCompPct: f32,
@@ -616,13 +872,10 @@ struct PassingData {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct ReceivingData {
-    pub team__displayName: String,
-    pub team__abbrName: String,
     pub player__rosterId: u32,
-    pub player__fullName: String,
     pub gamesPlayed: u8,
-    pub fantasy_points: f32,
     pub recTotalCatches: u32,
     pub recAvgCatchPct: f32,
     pub recTotalDrops: u32,
@@ -636,13 +889,10 @@ struct ReceivingData {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct RushingData {
-    pub team__displayName: String,
-    pub team__abbrName: String,
     pub player__rosterId: u32,
-    pub player__fullName: String,
     pub gamesPlayed: u8,
-    pub fantasy_points: f32,
     pub rushTotalAtt: u32,
     pub rushTotalBrokenTackles: u32,
     pub rushTotalFum: u32,
@@ -657,13 +907,10 @@ struct RushingData {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct DefenseData {
-    pub team__displayName: String,
-    pub team__abbrName: String,
     pub player__rosterId: u32,
-    pub player__fullName: String,
     pub gamesPlayed: u8,
-    pub fantasy_points: f32,
     pub defTotalCatchAllowed: u32,
     pub defTotalDeflections: u32,
     pub defTotalForcedFum: u32,
@@ -677,13 +924,10 @@ struct DefenseData {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct KickingData {
-    pub team__displayName: String,
-    pub team__abbrName: String,
     pub player__rosterId: u32,
-    pub player__fullName: String,
     pub gamesPlayed: u8,
-    pub fantasy_points: f32,
     pub fGTotalAtt: u32,
     pub fGTotal50PlusAtt: u32,
     pub fGTotal50PlusMade: u32,
@@ -698,11 +942,9 @@ struct KickingData {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct PuntingData {
-    pub team__displayName: String,
-    pub team__abbrName: String,
     pub player__rosterId: u32,
-    pub player__fullName: String,
     pub gamesPlayed: u8,
     pub puntsTotalBlocked: u32,
     pub puntsTotalIn20: u32,

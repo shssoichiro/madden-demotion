@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 csv = "1.2.0"
 itertools = "0.10.5"
+rand = "0.8.5"
 serde = { version = "1.0.152", features = ["derive"] }
