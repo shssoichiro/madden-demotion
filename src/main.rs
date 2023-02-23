@@ -5,6 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::File,
     io::BufReader,
+    mem::transmute,
 };
 
 use csv::Reader;
@@ -13,7 +14,7 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer};
 
 const QB_LIMITS: DevLimits = DevLimits {
-    xf_min: 2,
+    xf_min: 3,
     xf_max: 4,
     ss_min: 6,
     ss_max: 8,
@@ -38,7 +39,7 @@ const FB_LIMITS: DevLimits = DevLimits {
 };
 const WR_LIMITS: DevLimits = DevLimits {
     xf_min: 8,
-    xf_max: 12,
+    xf_max: 10,
     ss_min: 12,
     ss_max: 18,
     star_min: 45,
@@ -55,8 +56,8 @@ const TE_LIMITS: DevLimits = DevLimits {
 const OL_LIMITS: DevLimits = DevLimits {
     xf_min: 0,
     xf_max: 0,
-    ss_min: 15,
-    ss_max: 20,
+    ss_min: 12,
+    ss_max: 18,
     star_min: 75,
     star_max: 90,
 };
@@ -71,8 +72,8 @@ const IDL_LIMITS: DevLimits = DevLimits {
 const EDGE_LIMITS: DevLimits = DevLimits {
     xf_min: 4,
     xf_max: 6,
-    ss_min: 6,
-    ss_max: 10,
+    ss_min: 8,
+    ss_max: 12,
     star_min: 25,
     star_max: 40,
 };
@@ -142,6 +143,8 @@ enum DevTrait {
 }
 
 fn main() {
+    let debug = false;
+
     let mut seed = [0u8; 32];
     seed.copy_from_slice("T4cwqWjlAaZonILlHIIvp5rwBmt6jwBl".as_bytes());
     let mut rng = StdRng::from_seed(seed);
@@ -432,6 +435,105 @@ fn main() {
             })
             .collect_vec();
 
+        let star_count = players
+            .iter()
+            .filter(|(x, _)| x.devTrait >= DevTrait::Star as u8)
+            .count();
+        if star_count < limits.star_min {
+            let players = players
+                .iter()
+                .filter(|(player, _)| player.devTrait == DevTrait::Normal as u8)
+                .take(limits.star_min - star_count)
+                .collect_vec();
+            for (player, _) in players {
+                protected_players.insert(player.fullName.clone());
+                upgraded_players.insert(player.fullName.clone());
+                changed_players.insert(
+                    (
+                        player.fullName.clone(),
+                        player.team.clone(),
+                        player.position.clone(),
+                    ),
+                    (DevTrait::Normal, DevTrait::Star),
+                );
+            }
+        } else if star_count > limits.star_max {
+            let players = players
+                .iter()
+                .filter(|(player, _)| {
+                    player.devTrait >= DevTrait::Star as u8
+                        && !protected_players.contains(&player.fullName)
+                })
+                .rev()
+                .take(star_count - limits.star_max)
+                .collect_vec();
+            for (player, _) in players {
+                protected_players.insert(player.fullName.clone());
+                changed_players.insert(
+                    (
+                        player.fullName.clone(),
+                        player.team.clone(),
+                        player.position.clone(),
+                    ),
+                    (
+                        unsafe { transmute::<_, DevTrait>(player.devTrait) },
+                        unsafe { transmute::<_, DevTrait>(player.devTrait - 1) },
+                    ),
+                );
+            }
+        }
+
+        let ss_count = players
+            .iter()
+            .filter(|(x, _)| x.devTrait >= DevTrait::Superstar as u8)
+            .count();
+        if ss_count < limits.ss_min {
+            let players = players
+                .iter()
+                .filter(|(player, _)| {
+                    player.devTrait == DevTrait::Star as u8
+                        && !upgraded_players.contains(&player.fullName)
+                })
+                .take(limits.ss_min - ss_count)
+                .collect_vec();
+            for (player, _) in players {
+                protected_players.insert(player.fullName.clone());
+                upgraded_players.insert(player.fullName.clone());
+                changed_players.insert(
+                    (
+                        player.fullName.clone(),
+                        player.team.clone(),
+                        player.position.clone(),
+                    ),
+                    (DevTrait::Star, DevTrait::Superstar),
+                );
+            }
+        } else if ss_count > limits.ss_max {
+            let players = players
+                .iter()
+                .filter(|(player, _)| {
+                    player.devTrait >= DevTrait::Superstar as u8
+                        && !protected_players.contains(&player.fullName)
+                })
+                .rev()
+                .take(ss_count - limits.ss_max)
+                .collect_vec();
+            for (player, _) in players {
+                protected_players.insert(player.fullName.clone());
+                changed_players.insert(
+                    (
+                        player.fullName.clone(),
+                        player.team.clone(),
+                        player.position.clone(),
+                    ),
+                    (
+                        unsafe { transmute::<_, DevTrait>(player.devTrait) },
+                        unsafe { transmute::<_, DevTrait>(player.devTrait - 1) },
+                    ),
+                );
+            }
+        }
+
         let xf_count = players
             .iter()
             .filter(|(x, _)| x.devTrait >= DevTrait::XFactor as u8)
@@ -475,123 +577,61 @@ fn main() {
                         player.team.clone(),
                         player.position.clone(),
                     ),
-                    (DevTrait::XFactor, DevTrait::Superstar),
+                    (
+                        unsafe { transmute::<_, DevTrait>(player.devTrait) },
+                        unsafe { transmute::<_, DevTrait>(player.devTrait - 1) },
+                    ),
                 );
             }
         }
 
-        let ss_count = players
-            .iter()
-            .filter(|(x, _)| x.devTrait >= DevTrait::Superstar as u8)
-            .count();
-        if ss_count < limits.ss_min {
-            let players = players
-                .iter()
-                .filter(|(player, _)| {
-                    player.devTrait == DevTrait::Star as u8
-                        && !upgraded_players.contains(&player.fullName)
-                })
-                .take(limits.ss_min - ss_count)
-                .collect_vec();
-            for (player, _) in players {
-                protected_players.insert(player.fullName.clone());
-                upgraded_players.insert(player.fullName.clone());
-                changed_players.insert(
-                    (
+        if debug {
+            println!("{pos}:");
+            for (player, score) in &players {
+                println!(
+                    "{} = {score:.2}: {}",
+                    player.fullName,
+                    if let Some(changed) = changed_players.get(&(
                         player.fullName.clone(),
                         player.team.clone(),
                         player.position.clone(),
-                    ),
-                    (DevTrait::Star, DevTrait::Superstar),
+                    )) {
+                        format!("{:?} -> {:?}", changed.0, changed.1)
+                    } else if protected_players.contains(&player.fullName) {
+                        format!("{:?} (Protected)", unsafe {
+                            transmute::<_, DevTrait>(player.devTrait)
+                        })
+                    } else {
+                        format!("{:?} (Unchanged)", unsafe {
+                            transmute::<_, DevTrait>(player.devTrait)
+                        })
+                    }
                 );
             }
-        } else if ss_count > limits.ss_max {
-            let players = players
-                .iter()
-                .filter(|(player, _)| {
-                    player.devTrait == DevTrait::Superstar as u8
-                        && !protected_players.contains(&player.fullName)
-                })
-                .rev()
-                .take(ss_count - limits.ss_max)
-                .collect_vec();
-            for (player, _) in players {
-                protected_players.insert(player.fullName.clone());
-                changed_players.insert(
-                    (
-                        player.fullName.clone(),
-                        player.team.clone(),
-                        player.position.clone(),
-                    ),
-                    (DevTrait::Superstar, DevTrait::Star),
-                );
-            }
-        }
-
-        let star_count = players
-            .iter()
-            .filter(|(x, _)| x.devTrait >= DevTrait::Star as u8)
-            .count();
-        if star_count < limits.star_min {
-            let players = players
-                .iter()
-                .filter(|(player, _)| player.devTrait == DevTrait::Normal as u8)
-                .take(limits.star_min - star_count)
-                .collect_vec();
-            for (player, _) in players {
-                protected_players.insert(player.fullName.clone());
-                upgraded_players.insert(player.fullName.clone());
-                changed_players.insert(
-                    (
-                        player.fullName.clone(),
-                        player.team.clone(),
-                        player.position.clone(),
-                    ),
-                    (DevTrait::Normal, DevTrait::Star),
-                );
-            }
-        } else if star_count > limits.star_max {
-            let players = players
-                .iter()
-                .filter(|(player, _)| {
-                    player.devTrait == DevTrait::Star as u8
-                        && !protected_players.contains(&player.fullName)
-                })
-                .rev()
-                .take(star_count - limits.star_max)
-                .collect_vec();
-            for (player, _) in players {
-                protected_players.insert(player.fullName.clone());
-                changed_players.insert(
-                    (
-                        player.fullName.clone(),
-                        player.team.clone(),
-                        player.position.clone(),
-                    ),
-                    (DevTrait::Star, DevTrait::Normal),
-                );
-            }
+            println!();
         }
     }
 
-    for (team, group) in changed_players
-        .into_iter()
-        .sorted_unstable_by_key(|((_, team, _), _)| team.clone())
-        .group_by(|((_, team, _), _)| team.clone())
-        .into_iter()
-    {
-        if team.is_empty() {
-            println!("Free Agents:");
-        } else {
-            println!("{team}:");
-        }
-        for ((player, _, pos), (old, new)) in group
+    if !debug {
+        for (team, group) in changed_players
             .into_iter()
-            .sorted_unstable_by_key(|((name, _, pos), _)| (pos.clone(), name.clone()))
+            .sorted_unstable_by_key(|((_, team, _), _)| team.clone())
+            .group_by(|((_, team, _), _)| team.clone())
+            .into_iter()
         {
-            println!("{pos} {player}: {old:?} -> {new:?}");
+            if team.is_empty() {
+                println!("Free Agents:");
+            } else {
+                println!("{team}:");
+            }
+            for ((player, _, pos), (old, new)) in group
+                .into_iter()
+                .sorted_unstable_by_key(|((name, _, pos), _)| (pos.clone(), name.clone()))
+            {
+                println!("{pos} {player}: {old:?} -> {new:?}");
+            }
+            println!();
         }
-        println!();
     }
 }
 
