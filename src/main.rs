@@ -3,6 +3,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    env::args,
     fs::File,
     io::BufReader,
     mem::transmute,
@@ -143,7 +144,7 @@ enum DevTrait {
 }
 
 fn main() {
-    let debug = false;
+    let debug = args().nth(1) == Some("--debug".to_string());
 
     let mut seed = [0u8; 32];
     seed.copy_from_slice("T4cwqWjlAaZonILlHIIvp5rwBmt6jwBl".as_bytes());
@@ -295,6 +296,11 @@ fn main() {
                         && !THREE_FOUR_TEAMS.contains(&player.team.as_str()))
                         || player.position == "MLB"
                 })
+                .collect_vec()
+        } else if pos == "S" {
+            players_old
+                .iter()
+                .filter(|player| ["FS", "SS"].contains(&player.position.as_str()))
                 .collect_vec()
         } else if pos == "OL" {
             players_old
