@@ -57,8 +57,8 @@ const OL_LIMITS: DevLimits = DevLimits {
     xf_max: 0,
     ss_min: 15,
     ss_max: 20,
-    star_min: 80,
-    star_max: 95,
+    star_min: 75,
+    star_max: 90,
 };
 const IDL_LIMITS: DevLimits = DevLimits {
     xf_min: 4,
@@ -716,9 +716,9 @@ fn calc_player_multiplier(player: &PlayerData) -> f32 {
     if player.age <= 29 {
         return 1.0;
     }
-    // A gradual slope that results in 20% loss at age 35, 40% loss at age 40, and
-    // so on. If you're still in the league at age 50 then god help us.
-    (1.0 + (player.age - 30) as f32 * -0.04).max(0.2)
+    // A gradual slope that results in 20% loss at age 35, 40% loss at age 40, to a
+    // max of 50%.
+    (1.0 + (player.age - 30) as f32 * -0.04).max(0.5)
 }
 
 fn calc_qb_score(
