@@ -322,6 +322,10 @@ fn main() {
             .iter()
             .filter(|player| player.yearsPro <= 1)
             .filter(|player| {
+                if pos == "OL" {
+                    // We don't have game played stats for OL so we need to protect all OL rookies.
+                    return true;
+                }
                 let games_played = passing_stats
                     .iter()
                     .filter(|stat| stat.player__rosterId == player.rosterId)
