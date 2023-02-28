@@ -1,4 +1,4 @@
-## How the fuck do I use this?
+## How do I use this?
 
 IMPORTANT. When starting this, you should be in the postseason BEFORE the Super Bowl. The first steps need to be run BEFORE exporting Super Bowl week rosters to Neon. Otherwise you bricked it.
 
