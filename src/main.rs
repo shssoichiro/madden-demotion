@@ -270,7 +270,7 @@ fn main() {
     ] {
         // All players at the position who can be considered for demotion
         let players = if pos == "IDL" {
-            players_old
+            players_new
                 .iter()
                 .filter(|player| {
                     player.position == "DT"
@@ -279,7 +279,7 @@ fn main() {
                 })
                 .collect_vec()
         } else if pos == "EDGE" {
-            players_old
+            players_new
                 .iter()
                 .filter(|player| {
                     (["LE", "RE"].contains(&player.position.as_str())
@@ -289,7 +289,7 @@ fn main() {
                 })
                 .collect_vec()
         } else if pos == "LB" {
-            players_old
+            players_new
                 .iter()
                 .filter(|player| {
                     (["LOLB", "ROLB"].contains(&player.position.as_str())
@@ -298,17 +298,17 @@ fn main() {
                 })
                 .collect_vec()
         } else if pos == "S" {
-            players_old
+            players_new
                 .iter()
                 .filter(|player| ["FS", "SS"].contains(&player.position.as_str()))
                 .collect_vec()
         } else if pos == "OL" {
-            players_old
+            players_new
                 .iter()
                 .filter(|player| ["LG", "LT", "RG", "RT", "C"].contains(&player.position.as_str()))
                 .collect_vec()
         } else {
-            players_old
+            players_new
                 .iter()
                 .filter(|player| player.position == pos)
                 .collect_vec()
