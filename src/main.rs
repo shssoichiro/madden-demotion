@@ -4,7 +4,7 @@ use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
     env::args,
-    fs::File,
+    fs::{read_to_string, File},
     io::BufReader,
     mem::transmute,
 };
@@ -13,6 +13,7 @@ use csv::Reader;
 use itertools::Itertools;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::{de::DeserializeOwned, Deserialize, Deserializer};
+use sha2::{Digest, Sha256};
 
 const QB_LIMITS: DevLimits = DevLimits {
     xf_min: 3,
@@ -146,8 +147,25 @@ enum DevTrait {
 fn main() {
     let debug = args().nth(1) == Some("--debug".to_string());
 
+    // We want the randomness to be deterministic for the same season in the same
+    // league, but have variance for different seasons and for different
+    // leagues. Using the hash of the "old players file" is a reliable way to do
+    // that--this file is unlikely to be modified within the
+    // same season for the same league, but will vary in 99.9999% of cases
+    // across seasons and leagues.
+    //
+    // We want to trim off empty lines just to be safe
+    let mut hasher = Sha256::new();
+    let players_raw_data = read_to_string("data/neon_players_old/SFDL_players.csv")
+        .unwrap()
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .collect::<String>();
+    hasher.update(players_raw_data.as_bytes());
+    let result = hasher.finalize();
+
     let mut seed = [0u8; 32];
-    seed.copy_from_slice("T4cwqWjlAaZonILlHIIvp5rwBmt6jwBl".as_bytes());
+    seed.copy_from_slice(&result);
     let mut rng = StdRng::from_seed(seed);
 
     let total_xf_max = QB_LIMITS.xf_max
