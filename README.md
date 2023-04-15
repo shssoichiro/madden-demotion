@@ -6,7 +6,7 @@ Why is this so complicated? MADDEN. Also Neon doesn't give us all the info we ne
 
 1. Go to Neon and select Export CSV on the sidebar
 2. Select the current year, Regular/Post Season. Unselect anything from "Week".
-3. Select "Players" and nothing else for the checkboxes at the top.
+3. Select "Players" and "Teams" nothing else for the checkboxes at the top.
 4. Export, extract the files to a folder called "neon_season"
 5. Repeat but with Players and Games checked, extract to a folder called "neon_players_old"
 6. NOW you can feel free to advance to the Super Bowl, have your users play it, etc. The best time to continue on with the next step is probably the offseason stage when Retirements are announced, that way retired players are not included in the dev trait counts
