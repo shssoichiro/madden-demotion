@@ -406,51 +406,54 @@ fn main() {
         let players = players
             .into_iter()
             .map(|player| {
-                (player, match pos {
-                    "QB" => {
-                        let pass_stats = passing_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
-                        let rush_stats = rushing_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
+                (
+                    player,
+                    match pos {
+                        "QB" => {
+                            let pass_stats = passing_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
+                            let rush_stats = rushing_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
 
-                        calc_qb_score(player, pass_stats, rush_stats)
-                    }
-                    "HB" | "FB" | "WR" | "TE" => {
-                        let recv_stats = receiving_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
-                        let rush_stats = rushing_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
+                            calc_qb_score(player, pass_stats, rush_stats)
+                        }
+                        "HB" | "FB" | "WR" | "TE" => {
+                            let recv_stats = receiving_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
+                            let rush_stats = rushing_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
 
-                        calc_receiver_score(player, recv_stats, rush_stats)
-                    }
-                    "OL" => calc_ol_score(player, &mut rng),
-                    "IDL" | "EDGE" | "LB" | "CB" | "S" => {
-                        let stats = defense_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
+                            calc_receiver_score(player, recv_stats, rush_stats)
+                        }
+                        "OL" => calc_ol_score(player, &mut rng),
+                        "IDL" | "EDGE" | "LB" | "CB" | "S" => {
+                            let stats = defense_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
 
-                        calc_defense_score(player, stats)
-                    }
-                    "K" => {
-                        let stats = kicking_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
+                            calc_defense_score(player, stats)
+                        }
+                        "K" => {
+                            let stats = kicking_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
 
-                        calc_kicker_score(player, stats)
-                    }
-                    "P" => {
-                        let stats = punting_stats
-                            .iter()
-                            .find(|stat| stat.player__rosterId == player.rosterId);
+                            calc_kicker_score(player, stats)
+                        }
+                        "P" => {
+                            let stats = punting_stats
+                                .iter()
+                                .find(|stat| stat.player__rosterId == player.rosterId);
 
-                        calc_punter_score(player, stats)
-                    }
-                    _ => unreachable!(),
-                })
+                            calc_punter_score(player, stats)
+                        }
+                        _ => unreachable!(),
+                    },
+                )
             })
             .sorted_unstable_by(|(_, score_a), (_, score_b)| {
                 if score_a > score_b {
@@ -652,14 +655,45 @@ fn main() {
             } else {
                 println!("{team}:");
             }
-            for ((player, _, pos), (old, new)) in group
-                .into_iter()
-                .sorted_unstable_by_key(|((name, _, pos), _)| (pos.clone(), name.clone()))
-            {
+            for ((player, _, pos), (old, new)) in group.into_iter().sorted_unstable_by(
+                |((name_a, _, pos_a), _), ((name_b, _, pos_b), _)| {
+                    if pos_a == pos_b {
+                        return name_a.cmp(name_b);
+                    }
+                    get_pos_sort_order(pos_a).cmp(&get_pos_sort_order(pos_b))
+                },
+            ) {
                 println!("{pos} {player}: {old:?} -> {new:?}");
             }
             println!();
         }
+    }
+}
+
+fn get_pos_sort_order(pos: &str) -> u8 {
+    match pos {
+        "QB" => 0,
+        "HB" => 1,
+        "FB" => 2,
+        "WR" => 3,
+        "TE" => 4,
+        "LT" => 5,
+        "LG" => 6,
+        "C" => 7,
+        "RG" => 8,
+        "RT" => 9,
+        "LE" => 10,
+        "RE" => 11,
+        "DT" => 12,
+        "LOLB" => 13,
+        "MLB" => 14,
+        "ROLB" => 15,
+        "CB" => 16,
+        "FS" => 17,
+        "SS" => 18,
+        "K" => 19,
+        "P" => 20,
+        _ => unreachable!(),
     }
 }
 
