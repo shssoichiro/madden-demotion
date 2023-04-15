@@ -122,15 +122,15 @@ const P_LIMITS: DevLimits = DevLimits {
 
 const THREE_FOUR_TEAMS: &[&str] = &[
     "Broncos",
+    "Browns",
     "Buccaneers",
-    "Chargers",
+    "Cardinals",
     "Cowboys",
     "Dolphins",
-    "Falcons",
     "Giants",
     "Jaguars",
+    "Packers",
     "Patriots",
-    "Saints",
     "Texans",
     "Titans",
 ];
